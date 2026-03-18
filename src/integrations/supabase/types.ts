@@ -14,7 +14,54 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      cultural_entries: {
+        Row: {
+          author_creator: string | null
+          category: string
+          cover_url: string | null
+          created_at: string
+          date_consumed: string | null
+          id: string
+          rating: number | null
+          reflections: string | null
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+          year: number | null
+        }
+        Insert: {
+          author_creator?: string | null
+          category: string
+          cover_url?: string | null
+          created_at?: string
+          date_consumed?: string | null
+          id?: string
+          rating?: number | null
+          reflections?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          user_id: string
+          year?: number | null
+        }
+        Update: {
+          author_creator?: string | null
+          category?: string
+          cover_url?: string | null
+          created_at?: string
+          date_consumed?: string | null
+          id?: string
+          rating?: number | null
+          reflections?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+          year?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
