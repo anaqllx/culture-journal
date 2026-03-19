@@ -1,62 +1,91 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase, type CulturalEntry, type NewCulturalEntry } from '@/lib/supabase';
+import { db, auth } from '@/lib/firebase';
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  addDoc, 
+  deleteDoc, 
+  doc, 
+  orderBy, 
+  serverTimestamp 
+} from 'firebase/firestore';
+import { Entry } from '@/types/content';
 
+// 1. Отримання всіх записів користувача
 export function useEntries() {
   return useQuery({
-    queryKey: ['entries'],
+    queryKey: ['entries', auth.currentUser?.uid], // Ключ залежить від юзера
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('cultural_entries')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data as CulturalEntry[];
+      const user = auth.currentUser;
+      if (!user) return [];
+
+      console.log("Запит власних даних для:", user.uid);
+
+      const q = query(
+        collection(db, 'entries'),
+        where('user_id', '==', user.uid), // Фільтр: тільки моє
+        orderBy('created_at', 'desc')    // Сортування: нові зверху
+      );
+
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as Entry[];
+    },
+    enabled: !!auth.currentUser, // Не робити запит, поки юзер не залогінився
+  });
+}
+
+// 2. Додавання нового запису (книги, гри тощо)
+export function useAddEntry() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (newEntry: Omit<Entry, 'id' | 'user_id' | 'created_at'>) => {
+      const user = auth.currentUser;
+      if (!user) throw new Error('User not authenticated');
+
+      const docRef = await addDoc(collection(db, 'entries'), {
+        ...newEntry,
+        user_id: user.uid,
+        created_at: new Date().toISOString(), // або serverTimestamp()
+      });
+
+      return docRef.id;
+    },
+    onSuccess: () => {
+      // Оновлюємо список у бібліотеці автоматично
+      queryClient.invalidateQueries({ queryKey: ['entries'] });
     },
   });
 }
 
-export function useCreateEntry() {
-  const qc = useQueryClient();
+// 3. Видалення запису
+export function useDeleteEntry() {
+  const queryClient = useQueryClient();
+
   return useMutation({
-    mutationFn: async (entry: NewCulturalEntry) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-      const { data, error } = await supabase
-        .from('cultural_entries')
-        .insert({ ...entry, user_id: user.id })
-        .select()
-        .single();
-      if (error) throw error;
-      return data as CulturalEntry;
+    mutationFn: async (entryId: string) => {
+      await deleteDoc(doc(db, 'entries', entryId));
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['entries'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['entries'] });
+    },
   });
 }
 
 export function useUpdateEntry() {
-  const qc = useQueryClient();
+  const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, ...entry }: Partial<CulturalEntry> & { id: string }) => {
-      const { data, error } = await supabase
-        .from('cultural_entries')
-        .update(entry)
-        .eq('id', id)
-        .select()
-        .single();
-      if (error) throw error;
-      return data as CulturalEntry;
+    mutationFn: async ({ id, ...updates }: Partial<Entry> & { id: string }) => {
+      const { doc, updateDoc } = await import('firebase/firestore');
+      await updateDoc(doc(db, 'entries', id), updates);
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['entries'] }),
-  });
-}
-
-export function useDeleteEntry() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await supabase.from('cultural_entries').delete().eq('id', id);
-      if (error) throw error;
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['entries'] });
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['entries'] }),
   });
 }

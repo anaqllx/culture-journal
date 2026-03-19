@@ -7,39 +7,38 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { supabase } from '@/lib/supabase';
-import { useCreateEntry, useUpdateEntry } from '@/hooks/useEntries';
+import { useAddEntry, useUpdateEntry } from '@/hooks/useEntries';
 import { CATEGORY_CONFIG } from '@/components/CategoryBadge';
-import type { CulturalEntry, NewCulturalEntry, Category, Status } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { Upload, X } from 'lucide-react';
+// ПЕРЕВІР ЦЕЙ ІМПОРТ - він має вести на твій новий файл типів
+import { Category, Status, Entry } from '@/types/content';
 
 const schema = z.object({
-  title: z.string().min(1, 'Title is required').max(200),
+  title: z.string().min(1, 'Назва обов’язкова').max(200),
   category: z.enum(['book', 'movie', 'game', 'music'] as const),
   status: z.enum(['currently', 'completed', 'want'] as const),
-  date_consumed: z.string().optional(),
+  date_consumed: z.string().optional().nullable(),
   rating: z.number().min(1).max(10).nullable().optional(),
-  reflections: z.string().max(5000).optional(),
-  author_creator: z.string().max(200).optional(),
+  review: z.string().max(5000).optional().nullable(),
+  author_creator: z.string().max(200).optional().nullable(),
   year: z.number().min(1800).max(new Date().getFullYear() + 2).nullable().optional(),
-  cover_url: z.string().url().optional().or(z.literal('')),
+  image_url: z.string().url().optional().or(z.literal('')).nullable(),
 });
 
 type FormData = z.infer<typeof schema>;
 
 interface EntryFormProps {
-  entry?: CulturalEntry;
+  entry?: Entry;
   onSuccess?: () => void;
   onCancel?: () => void;
 }
 
 export default function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps) {
   const { toast } = useToast();
-  const createEntry = useCreateEntry();
+  const addEntry = useAddEntry();
   const updateEntry = useUpdateEntry();
-  const [uploading, setUploading] = useState(false);
-  const [coverPreview, setCoverPreview] = useState(entry?.cover_url || '');
+  const [coverPreview, setCoverPreview] = useState(entry?.image_url || '');
 
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -49,131 +48,111 @@ export default function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps
       status: (entry?.status as Status) || 'completed',
       date_consumed: entry?.date_consumed || '',
       rating: entry?.rating || null,
-      reflections: entry?.reflections || '',
+      review: entry?.review || '',
       author_creator: entry?.author_creator || '',
       year: entry?.year || null,
-      cover_url: entry?.cover_url || '',
+      image_url: entry?.image_url || '',
     },
   });
 
   const category = watch('category');
   const ratingValue = watch('rating');
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-      const ext = file.name.split('.').pop();
-      const path = `${user.id}/${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from('covers').upload(path, file, { upsert: true });
-      if (error) throw error;
-      const { data } = supabase.storage.from('covers').getPublicUrl(path);
-      setValue('cover_url', data.publicUrl);
-      setCoverPreview(data.publicUrl);
-    } catch (err: unknown) {
-      toast({ title: 'Upload failed', description: err instanceof Error ? err.message : 'Try again', variant: 'destructive' });
-    } finally {
-      setUploading(false);
-    }
-  };
-
   const onSubmit = async (data: FormData) => {
     try {
-      const payload: NewCulturalEntry = {
+      const payload = {
         title: data.title,
         category: data.category,
         status: data.status,
         date_consumed: data.date_consumed || null,
         rating: data.rating ?? null,
-        reflections: data.reflections || null,
+        review: data.review || null,
         author_creator: data.author_creator || null,
         year: data.year ?? null,
-        cover_url: data.cover_url || null,
+        image_url: data.image_url || null,
       };
-      if (entry) {
+
+      if (entry?.id) {
         await updateEntry.mutateAsync({ id: entry.id, ...payload });
-        toast({ title: 'Entry updated!' });
+        toast({ title: 'Оновлено!', description: 'Запис успішно змінено' });
       } else {
-        await createEntry.mutateAsync(payload);
-        toast({ title: 'Entry added to your diary!' });
+        await addEntry.mutateAsync(payload);
+        toast({ title: 'Додано!', description: 'Новий запис з’явився у щоденнику' });
       }
       onSuccess?.();
-    } catch (err: unknown) {
-      toast({ title: 'Error', description: err instanceof Error ? err.message : 'Something went wrong', variant: 'destructive' });
+    } catch (err: any) {
+      toast({ 
+        title: 'Помилка', 
+        description: err.message || 'Щось пішло не так', 
+        variant: 'destructive' 
+      });
     }
   };
 
-  const isLoading = createEntry.isPending || updateEntry.isPending;
+  const isLoading = addEntry.isPending || updateEntry.isPending;
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-      {/* Cover art */}
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 text-left">
       <div className="flex gap-4">
         <div className="flex-shrink-0">
-          <div className="w-20 h-28 rounded-lg border-2 border-dashed border-border bg-muted flex items-center justify-center overflow-hidden relative group">
+          <div className="w-20 h-28 rounded-xl border-2 border-dashed border-border bg-muted flex items-center justify-center overflow-hidden relative group shadow-sm">
             {coverPreview ? (
               <>
                 <img src={coverPreview} alt="cover" className="w-full h-full object-cover" />
                 <button
                   type="button"
-                  onClick={() => { setCoverPreview(''); setValue('cover_url', ''); }}
-                  className="absolute top-1 right-1 bg-background/80 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                  onClick={() => { setCoverPreview(''); setValue('image_url', ''); }}
+                  className="absolute top-1 right-1 bg-background/90 rounded-full p-1 shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
                 >
-                  <X className="w-3 h-3" />
+                  <X className="w-3 h-3 text-destructive" />
                 </button>
               </>
             ) : (
-              <label className="cursor-pointer flex flex-col items-center gap-1 p-2">
-                <Upload className="w-4 h-4 text-muted-foreground" />
-                <span className="text-[10px] text-muted-foreground text-center">Upload</span>
-                <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={uploading} />
-              </label>
+              <div className="flex flex-col items-center gap-1 p-2 text-muted-foreground">
+                <Upload className="w-5 h-5 opacity-40" />
+                <span className="text-[10px] text-center font-medium">URL ілюстрації</span>
+              </div>
             )}
           </div>
         </div>
-        <div className="flex-1 space-y-3">
+        <div className="flex-1 space-y-4">
           <div>
-            <Label htmlFor="title" className="text-sm font-medium">Title *</Label>
-            <Input id="title" {...register('title')} placeholder="Enter title…" className="mt-1 bg-background/60" />
-            {errors.title && <p className="text-destructive text-xs mt-1">{errors.title.message}</p>}
+            <Label htmlFor="title" className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Назва *</Label>
+            <Input id="title" {...register('title')} placeholder="Назва книги, фільму..." className="mt-1 bg-background" />
+            {errors.title && <p className="text-destructive text-[10px] mt-1">{errors.title.message}</p>}
           </div>
           <div>
-            <Label htmlFor="author_creator" className="text-sm font-medium">Author / Creator</Label>
-            <Input id="author_creator" {...register('author_creator')} placeholder="Who made it?" className="mt-1 bg-background/60" />
+            <Label htmlFor="author_creator" className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Автор / Творець</Label>
+            <Input id="author_creator" {...register('author_creator')} placeholder="Хто автор?" className="mt-1 bg-background" />
           </div>
         </div>
       </div>
 
-      {/* Cover URL field */}
       <div>
-        <Label htmlFor="cover_url" className="text-sm font-medium">Cover URL (optional)</Label>
+        <Label htmlFor="image_url" className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Посилання на обкладинку (URL)</Label>
         <Input
-          id="cover_url"
-          {...register('cover_url')}
-          placeholder="https://…"
-          className="mt-1 bg-background/60"
-          onChange={e => { setValue('cover_url', e.target.value); setCoverPreview(e.target.value); }}
+          id="image_url"
+          {...register('image_url')}
+          placeholder="https://images..."
+          className="mt-1 bg-background"
+          onChange={e => { setValue('image_url', e.target.value); setCoverPreview(e.target.value); }}
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        {/* Category */}
+      <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label className="text-sm font-medium">Category *</Label>
+          <Label className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Категорія *</Label>
           <Select defaultValue={category} onValueChange={v => setValue('category', v as Category)}>
-            <SelectTrigger className="mt-1 bg-background/60">
+            <SelectTrigger className="mt-1 bg-background">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {(Object.entries(CATEGORY_CONFIG) as [Category, typeof CATEGORY_CONFIG[Category]][]).map(([key, cfg]) => {
+              {(Object.entries(CATEGORY_CONFIG) as [Category, any][]).map(([key, cfg]) => {
                 const Icon = cfg.icon;
                 return (
                   <SelectItem key={key} value={key}>
                     <span className="flex items-center gap-2">
-                      <Icon className="w-3.5 h-3.5" /> {cfg.label}
+                      <Icon className="w-4 h-4" /> {cfg.label}
                     </span>
                   </SelectItem>
                 );
@@ -182,82 +161,73 @@ export default function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps
           </Select>
         </div>
 
-        {/* Status */}
         <div>
-          <Label className="text-sm font-medium">Status *</Label>
+          <Label className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Статус *</Label>
           <Select defaultValue={watch('status')} onValueChange={v => setValue('status', v as Status)}>
-            <SelectTrigger className="mt-1 bg-background/60">
+            <SelectTrigger className="mt-1 bg-background">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="currently">📖 Currently</SelectItem>
-              <SelectItem value="completed">✅ Completed</SelectItem>
-              <SelectItem value="want">⭐ Want to</SelectItem>
+              <SelectItem value="currently">📖 В процесі</SelectItem>
+              <SelectItem value="completed">✅ Завершено</SelectItem>
+              <SelectItem value="want">⭐ В планах</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        {/* Year */}
+      <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="year" className="text-sm font-medium">Year</Label>
+          <Label htmlFor="year" className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Рік виходу</Label>
           <Input
             id="year"
             type="number"
-            min={1800}
-            max={new Date().getFullYear() + 2}
-            placeholder={String(new Date().getFullYear())}
-            className="mt-1 bg-background/60"
-            onChange={e => setValue('year', e.target.value ? Number(e.target.value) : null)}
-            defaultValue={entry?.year || ''}
+            className="mt-1 bg-background"
+            {...register('year', { valueAsNumber: true })}
           />
         </div>
-        {/* Date consumed */}
         <div>
-          <Label htmlFor="date_consumed" className="text-sm font-medium">Date consumed</Label>
-          <Input id="date_consumed" type="date" {...register('date_consumed')} className="mt-1 bg-background/60" />
+          <Label htmlFor="date_consumed" className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Дата ознайомлення</Label>
+          <Input id="date_consumed" type="date" {...register('date_consumed')} className="mt-1 bg-background" />
         </div>
       </div>
 
-      {/* Rating */}
       <div>
-        <Label className="text-sm font-medium">Rating: {ratingValue ? `${ratingValue}/10` : 'None'}</Label>
-        <div className="flex gap-1 mt-2">
-          {Array.from({ length: 10 }).map((_, i) => (
+        <Label className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Твоя оцінка: {ratingValue ? `${ratingValue}/10` : 'Без оцінки'}</Label>
+        <div className="flex gap-1.5 mt-2 flex-wrap">
+          {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
             <button
-              key={i}
+              key={num}
               type="button"
-              onClick={() => setValue('rating', ratingValue === i + 1 ? null : i + 1)}
-              className={`w-8 h-8 rounded-lg text-xs font-medium transition-all border ${
-                ratingValue && ratingValue >= i + 1
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'bg-muted text-muted-foreground border-border hover:bg-secondary'
+              onClick={() => setValue('rating', ratingValue === num ? null : num)}
+              className={`w-8 h-8 rounded-lg text-xs font-bold transition-all border shadow-sm ${
+                ratingValue && ratingValue >= num
+                  ? 'bg-primary text-primary-foreground border-primary scale-105'
+                  : 'bg-background text-muted-foreground border-border hover:border-primary/50'
               }`}
             >
-              {i + 1}
+              {num}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Reflections */}
       <div>
-        <Label htmlFor="reflections" className="text-sm font-medium">Reflections</Label>
+        <Label htmlFor="review" className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Враження (Reflections)</Label>
         <Textarea
-          id="reflections"
-          {...register('reflections')}
-          placeholder="What did you think? What stayed with you? Any personal connections…"
-          className="mt-1 bg-background/60 min-h-[100px] resize-none"
+          id="review"
+          {...register('review')}
+          placeholder="Що тобі запам'яталося?"
+          className="mt-1 bg-background min-h-[100px] resize-none"
         />
       </div>
 
-      <div className="flex gap-3 pt-1">
+      <div className="flex gap-3 pt-2">
         {onCancel && (
-          <Button type="button" variant="outline" onClick={onCancel} className="flex-1">Cancel</Button>
+          <Button type="button" variant="outline" onClick={onCancel} className="flex-1 rounded-xl">Скасувати</Button>
         )}
-        <Button type="submit" className="flex-1" disabled={isLoading || uploading}>
-          {isLoading ? 'Saving…' : entry ? 'Update Entry' : 'Add to Diary'}
+        <Button type="submit" className="flex-1 rounded-xl shadow-md" disabled={isLoading}>
+          {isLoading ? 'Збереження...' : entry ? 'Оновити' : 'Додати в щоденник'}
         </Button>
       </div>
     </form>

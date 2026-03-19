@@ -1,16 +1,16 @@
 import { useState } from 'react';
-import type { CulturalEntry } from '@/lib/supabase';
 import { CategoryBadge, StarRating, STATUS_CONFIG } from '@/components/CategoryBadge';
-import { useDeleteEntry } from '@/hooks/useEntries';
+import { useDeleteEntry } from '@/hooks/useEntries'; // Цей хук ми створимо наступним кроком
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal, Pencil, Trash2, BookOpen } from 'lucide-react';
 import EntryForm from '@/components/EntryForm';
 import { useToast } from '@/hooks/use-toast';
+import { Entry } from '@/types/content'; // Імпортуємо наш новий тип
 
 interface EntryCardProps {
-  entry: CulturalEntry;
+  entry: Entry; // Міняємо CulturalEntry на Entry
 }
 
 export default function EntryCard({ entry }: EntryCardProps) {
@@ -23,7 +23,7 @@ export default function EntryCard({ entry }: EntryCardProps) {
     try {
       await deleteEntry.mutateAsync(entry.id);
       toast({ title: 'Entry deleted' });
-    } catch {
+    } catch (err) {
       toast({ title: 'Error', description: 'Could not delete entry', variant: 'destructive' });
     }
   };
@@ -36,9 +36,9 @@ export default function EntryCard({ entry }: EntryCardProps) {
         <div className="flex gap-3 p-4">
           {/* Cover */}
           <div className="flex-shrink-0 w-16 h-22">
-            {entry.cover_url ? (
+            {entry.image_url ? ( // Lovable міг називати це cover_url, у Firebase ми назвали image_url
               <img
-                src={entry.cover_url}
+                src={entry.image_url}
                 alt={entry.title}
                 className="w-16 h-[88px] object-cover rounded-lg shadow-soft"
               />
@@ -78,22 +78,21 @@ export default function EntryCard({ entry }: EntryCardProps) {
             </div>
 
             <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-              <CategoryBadge category={entry.category as any} size="sm" />
+              <CategoryBadge category={entry.category} size="sm" />
               {statusConfig && (
                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs border ${statusConfig.badge}`}>
                   {statusConfig.label}
                 </span>
               )}
-              {entry.year && <span className="text-xs text-muted-foreground">{entry.year}</span>}
             </div>
 
             <div className="mt-2">
               <StarRating rating={entry.rating} size="sm" />
             </div>
 
-            {entry.reflections && (
+            {entry.review && ( // У Lovable могло бути reflections, у нас review
               <p className="text-xs text-muted-foreground mt-2 line-clamp-2 italic">
-                "{entry.reflections}"
+                "{entry.review}"
               </p>
             )}
           </div>

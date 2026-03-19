@@ -1,5 +1,5 @@
+import { Category } from '@/types/content'; // Ми беремо це з нашого нового фай
 import { BookOpen, Film, Gamepad2, Music } from 'lucide-react';
-import type { Category } from '@/lib/supabase';
 
 export const CATEGORY_CONFIG: Record<Category, { label: string; icon: React.ComponentType<{ className?: string }>; color: string; bg: string }> = {
   book: { label: 'Book', icon: BookOpen, color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200' },

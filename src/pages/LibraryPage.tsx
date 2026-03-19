@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { BookOpen, Film, Gamepad2, Music, Search, SlidersHorizontal } from 'lucide-react';
-import type { Category, Status } from '@/lib/supabase';
+import { Category, Status } from '@/types/content';
 
 type SortKey = 'created_at' | 'rating' | 'date_consumed' | 'title';
 
@@ -28,7 +28,8 @@ export default function LibraryPage() {
       if (sort === 'rating') return (b.rating || 0) - (a.rating || 0);
       if (sort === 'title') return a.title.localeCompare(b.title);
       if (sort === 'date_consumed') return (b.date_consumed || '').localeCompare(a.date_consumed || '');
-      return b.created_at.localeCompare(a.created_at);
+      // Сортування за часом (у Firebase це зазвичай ISO рядок)
+      return (b.created_at || '').localeCompare(a.created_at || '');
     });
 
   const catButtons: { key: Category | 'all'; label: string; icon?: React.ComponentType<{ className?: string }> }[] = [
@@ -50,16 +51,16 @@ export default function LibraryPage() {
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
+          <input
             placeholder="Search by title or creator…"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="pl-9 bg-background/60"
+            className="flex h-10 w-full rounded-md border border-input bg-background/60 px-9 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           />
         </div>
         <Select value={status} onValueChange={v => setStatus(v as Status | 'all')}>
           <SelectTrigger className="w-[140px] bg-background/60">
-            <SelectValue />
+            <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All statuses</SelectItem>
@@ -70,8 +71,10 @@ export default function LibraryPage() {
         </Select>
         <Select value={sort} onValueChange={v => setSort(v as SortKey)}>
           <SelectTrigger className="w-[140px] bg-background/60">
-            <SlidersHorizontal className="w-3.5 h-3.5 mr-1.5" />
-            <SelectValue />
+            <div className="flex items-center">
+              <SlidersHorizontal className="w-3.5 h-3.5 mr-1.5" />
+              <SelectValue placeholder="Sort" />
+            </div>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="created_at">Latest Added</SelectItem>
@@ -104,17 +107,21 @@ export default function LibraryPage() {
       {/* Grid */}
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-32 rounded-xl bg-muted animate-pulse" />)}
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-32 rounded-xl bg-muted animate-pulse" />
+          ))}
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-25" />
           <p className="font-display text-xl">Nothing found</p>
-          <p className="text-sm mt-1">Try adjusting your filters.</p>
+          <p className="text-sm mt-1">Try adjusting your filters or add your first experience.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {filtered.map(entry => <EntryCard key={entry.id} entry={entry} />)}
+          {filtered.map(entry => (
+            <EntryCard key={entry.id} entry={entry} />
+          ))}
         </div>
       )}
     </div>
