@@ -1,21 +1,28 @@
 import { useState, useEffect } from 'react';
 import { auth } from '@/lib/firebase';
-import { onAuthStateChanged, User } from 'firebase/auth';
+import { onAuthStateChanged, User, signOut } from 'firebase/auth'; // Додали signOut
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Створюємо "слухача", який стежить за входом/виходом
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
       setLoading(false);
     });
 
-    // Відписуємось від слухача, коли компонент видаляється
     return () => unsubscribe();
   }, []);
 
-  return { user, loading };
+  // Додаємо функцію виходу
+  const logout = async () => {
+    try {
+      await signOut(auth);
+    } catch (error) {
+      console.error("Помилка при виході:", error);
+    }
+  };
+
+  return { user, loading, logout }; // Тепер повертаємо і logout
 }

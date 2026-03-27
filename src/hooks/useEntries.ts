@@ -8,25 +8,24 @@ import {
   addDoc, 
   deleteDoc, 
   doc, 
-  orderBy, 
-  serverTimestamp 
+  updateDoc,
+  orderBy 
 } from 'firebase/firestore';
 import { Entry } from '@/types/content';
 
 // 1. Отримання всіх записів користувача
 export function useEntries() {
   return useQuery({
-    queryKey: ['entries', auth.currentUser?.uid], // Ключ залежить від юзера
+    // Ключ залежить від UID, щоб дані не "перемішувалися" при зміні акаунта
+    queryKey: ['entries', auth.currentUser?.uid], 
     queryFn: async () => {
       const user = auth.currentUser;
       if (!user) return [];
 
-      console.log("Запит власних даних для:", user.uid);
-
       const q = query(
         collection(db, 'entries'),
-        where('user_id', '==', user.uid), // Фільтр: тільки моє
-        orderBy('created_at', 'desc')    // Сортування: нові зверху
+        where('user_id', '==', user.uid),
+        orderBy('created_at', 'desc')
       );
 
       const snapshot = await getDocs(q);
@@ -35,29 +34,29 @@ export function useEntries() {
         ...doc.data()
       })) as Entry[];
     },
-    enabled: !!auth.currentUser, // Не робити запит, поки юзер не залогінився
+    enabled: !!auth.currentUser, // Запит не піде, поки немає юзера
   });
 }
 
-// 2. Додавання нового запису (книги, гри тощо)
+// 2. Додавання нового запису
 export function useAddEntry() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (newEntry: Omit<Entry, 'id' | 'user_id' | 'created_at'>) => {
       const user = auth.currentUser;
-      if (!user) throw new Error('User not authenticated');
+      if (!user) throw new Error('Користувач не авторизований');
 
       const docRef = await addDoc(collection(db, 'entries'), {
         ...newEntry,
         user_id: user.uid,
-        created_at: new Date().toISOString(), // або serverTimestamp()
+        created_at: new Date().toISOString(),
       });
 
-      return docRef.id;
+      return { id: docRef.id, ...newEntry };
     },
     onSuccess: () => {
-      // Оновлюємо список у бібліотеці автоматично
+      // Оновлюємо кеш, щоб нова картка з'явилася миттєво
       queryClient.invalidateQueries({ queryKey: ['entries'] });
     },
   });
@@ -77,12 +76,14 @@ export function useDeleteEntry() {
   });
 }
 
+// 4. Оновлення запису
 export function useUpdateEntry() {
   const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async ({ id, ...updates }: Partial<Entry> & { id: string }) => {
-      const { doc, updateDoc } = await import('firebase/firestore');
-      await updateDoc(doc(db, 'entries', id), updates);
+      const docRef = doc(db, 'entries', id);
+      await updateDoc(docRef, updates);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['entries'] });

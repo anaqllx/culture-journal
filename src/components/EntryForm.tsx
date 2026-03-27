@@ -10,9 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useAddEntry, useUpdateEntry } from '@/hooks/useEntries';
 import { CATEGORY_CONFIG } from '@/components/CategoryBadge';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, X } from 'lucide-react';
-// ПЕРЕВІР ЦЕЙ ІМПОРТ - він має вести на твій новий файл типів
+import { Upload, X, ImageIcon, Loader2 } from 'lucide-react';
 import { Category, Status, Entry } from '@/types/content';
+import { uploadToCloudinary } from '@/lib/cloudinary';
 
 const schema = z.object({
   title: z.string().min(1, 'Назва обов’язкова').max(200),
@@ -38,7 +38,9 @@ export default function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps
   const { toast } = useToast();
   const addEntry = useAddEntry();
   const updateEntry = useUpdateEntry();
+  
   const [coverPreview, setCoverPreview] = useState(entry?.image_url || '');
+  const [isUploading, setIsUploading] = useState(false);
 
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -57,6 +59,30 @@ export default function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps
 
   const category = watch('category');
   const ratingValue = watch('rating');
+
+  // Функція завантаження файлу на Cloudinary
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsUploading(true);
+      const imageUrl = await uploadToCloudinary(file);
+      
+      setValue('image_url', imageUrl); // Оновлюємо значення в формі
+      setCoverPreview(imageUrl);       // Оновлюємо прев'ю
+      
+      toast({ title: 'Фото завантажено!', description: 'Обкладинка успішно збережена в хмарі' });
+    } catch (error) {
+      toast({ 
+        title: 'Помилка завантаження', 
+        description: 'Не вдалося зберегти фото. Перевір налаштування пресета.',
+        variant: 'destructive' 
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const onSubmit = async (data: FormData) => {
     try {
@@ -94,9 +120,15 @@ export default function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 text-left">
       <div className="flex gap-4">
-        <div className="flex-shrink-0">
-          <div className="w-20 h-28 rounded-xl border-2 border-dashed border-border bg-muted flex items-center justify-center overflow-hidden relative group shadow-sm">
-            {coverPreview ? (
+        {/* Блок завантаження та прев'ю */}
+        <div className="flex-shrink-0 flex flex-col gap-2">
+          <div className="w-24 h-32 rounded-xl border-2 border-dashed border-border bg-muted flex items-center justify-center overflow-hidden relative group shadow-sm">
+            {isUploading ? (
+              <div className="flex flex-col items-center gap-2">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                <span className="text-[10px] text-muted-foreground">Завантаження...</span>
+              </div>
+            ) : coverPreview ? (
               <>
                 <img src={coverPreview} alt="cover" className="w-full h-full object-cover" />
                 <button
@@ -108,13 +140,29 @@ export default function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps
                 </button>
               </>
             ) : (
-              <div className="flex flex-col items-center gap-1 p-2 text-muted-foreground">
-                <Upload className="w-5 h-5 opacity-40" />
-                <span className="text-[10px] text-center font-medium">URL ілюстрації</span>
+              <div className="flex flex-col items-center gap-1 p-2 text-muted-foreground opacity-40">
+                <ImageIcon className="w-6 h-6" />
+                <span className="text-[10px] text-center font-medium">Немає фото</span>
               </div>
             )}
           </div>
+          
+          <Label 
+            htmlFor="file-upload" 
+            className="cursor-pointer text-[11px] font-semibold text-center bg-secondary py-1.5 px-2 rounded-lg hover:bg-secondary/80 transition-colors border border-border/50"
+          >
+            {isUploading ? "Обробка..." : "Обрати файл"}
+          </Label>
+          <input 
+            id="file-upload" 
+            type="file" 
+            className="hidden" 
+            accept="image/*" 
+            onChange={handleFileChange}
+            disabled={isUploading}
+          />
         </div>
+
         <div className="flex-1 space-y-4">
           <div>
             <Label htmlFor="title" className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Назва *</Label>
@@ -129,7 +177,7 @@ export default function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps
       </div>
 
       <div>
-        <Label htmlFor="image_url" className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Посилання на обкладинку (URL)</Label>
+        <Label htmlFor="image_url" className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">URL картинки (або завантаж файл)</Label>
         <Input
           id="image_url"
           {...register('image_url')}
@@ -226,8 +274,8 @@ export default function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps
         {onCancel && (
           <Button type="button" variant="outline" onClick={onCancel} className="flex-1 rounded-xl">Скасувати</Button>
         )}
-        <Button type="submit" className="flex-1 rounded-xl shadow-md" disabled={isLoading}>
-          {isLoading ? 'Збереження...' : entry ? 'Оновити' : 'Додати в щоденник'}
+        <Button type="submit" className="flex-1 rounded-xl shadow-md" disabled={isLoading || isUploading}>
+          {isUploading ? 'Завантаження фото...' : isLoading ? 'Збереження...' : entry ? 'Оновити' : 'Додати в щоденник'}
         </Button>
       </div>
     </form>

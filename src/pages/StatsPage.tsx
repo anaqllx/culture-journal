@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import { CATEGORY_CONFIG } from '@/components/CategoryBadge';
 import { format, parseISO, startOfMonth } from 'date-fns';
-import { Category } from '@/types/content'; // Додали імпорт типу
+import { Category } from '@/types/content';
 
 const CATEGORY_COLORS: Record<Category, string> = {
   book: '#B45309',
@@ -17,14 +17,12 @@ const CATEGORY_COLORS: Record<Category, string> = {
 export default function StatsPage() {
   const { data: entries = [], isLoading } = useEntries();
 
-  // Статистика за категоріями
   const byCat = (Object.keys(CATEGORY_CONFIG) as Category[]).map(cat => ({
     name: CATEGORY_CONFIG[cat].label,
     value: entries.filter(e => e.category === cat).length,
     color: CATEGORY_COLORS[cat],
   })).filter(d => d.value > 0);
 
-  // Статистика по місяцях (використовуємо дату споживання)
   const monthMap = new Map<string, number>();
   entries
     .filter(e => e.date_consumed)
@@ -33,7 +31,7 @@ export default function StatsPage() {
         const month = format(startOfMonth(parseISO(e.date_consumed!)), 'MMM yy');
         monthMap.set(month, (monthMap.get(month) || 0) + 1);
       } catch (err) {
-        console.error("Помилка дати:", e.date_consumed);
+        console.error("Date error:", e.date_consumed);
       }
     });
     
@@ -41,7 +39,6 @@ export default function StatsPage() {
     .map(([month, count]) => ({ month, count }))
     .slice(-12);
 
-  // Розподіл рейтингів
   const ratingDist = Array.from({ length: 10 }).map((_, i) => ({
     rating: i + 1,
     count: entries.filter(e => e.rating === i + 1).length,
@@ -67,8 +64,8 @@ export default function StatsPage() {
     return (
       <div className="text-center py-24 text-muted-foreground animate-fade-in">
         <div className="text-5xl mb-4 text-primary/20">📊</div>
-        <p className="font-display text-2xl text-foreground">Ще немає даних</p>
-        <p className="text-sm mt-2">Додайте записи у бібліотеку, щоб побачити свою статистику.</p>
+        <p className="font-display text-2xl text-foreground">No data yet</p>
+        <p className="text-sm mt-2">Add records to library to see your statistics.</p>
       </div>
     );
   }
@@ -77,20 +74,22 @@ export default function StatsPage() {
     <div className="space-y-8 animate-fade-in">
       <div>
         <h1 className="font-display text-3xl font-bold text-foreground italic">Stats</h1>
-        <p className="text-muted-foreground mt-1">Твій культурний прогрес у цифрах.</p>
+        <p className="text-muted-foreground mt-1">Your cultural progress in numbers.</p>
       </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: 'Усього записів', value: entries.length },
-          { label: 'Завершено', value: entries.filter(e => e.status === 'completed').length },
-          { label: 'В процесі', value: entries.filter(e => e.status === 'currently').length },
-          { label: 'Сер. рейтинг', value: avgRating ? `${avgRating} / 10` : '—' },
+          { label: 'Total records', value: entries.length },
+          { label: 'Completed', value: entries.filter(e => e.status === 'completed').length },
+          { label: 'In progress', value: entries.filter(e => e.status === 'currently').length },
+          { label: 'Avg. rating', value: avgRating ? `${avgRating} / 10` : '—' },
         ].map(({ label, value }) => (
           <div key={label} className="gradient-card rounded-2xl p-5 border border-border/60 shadow-soft">
-            <div className="font-display text-2xl font-bold text-foreground">{value}</div>
-            <div className="text-xs text-muted-foreground mt-1 font-medium uppercase tracking-wider">{label}</div>
+            {/* ТУТ ЗМІНА: Замість text-foreground ставимо жорсткий темний колір */}
+            <div className="font-display text-2xl font-bold text-slate-900 dark:text-slate-950">{value}</div>
+            {/* ТУТ ЗМІНА: Замість text-muted-foreground ставимо темніший slate */}
+            <div className="text-xs text-slate-600 dark:text-slate-800 mt-1 font-medium uppercase tracking-wider">{label}</div>
           </div>
         ))}
       </div>
@@ -98,7 +97,8 @@ export default function StatsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Pie Chart */}
         <div className="gradient-card rounded-2xl border border-border/60 shadow-soft p-6">
-          <h2 className="font-display text-lg font-semibold mb-6">Розподіл за категоріями</h2>
+          {/* ТУТ ЗМІНА: Заголовок теж робимо темним */}
+          <h2 className="font-display text-lg font-semibold mb-6 text-slate-900 dark:text-slate-950">Distribution by categories</h2>
           <ResponsiveContainer width="100%" height={250}>
             <PieChart>
               <Pie data={byCat} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={5} dataKey="value">
@@ -108,7 +108,7 @@ export default function StatsPage() {
               </Pie>
               <Tooltip 
                 contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                formatter={(value) => [`${value} записів`, 'Кількість']} 
+                formatter={(value) => [`${value} records`, 'Number']} 
               />
               <Legend verticalAlign="bottom" height={36}/>
             </PieChart>
@@ -118,17 +118,17 @@ export default function StatsPage() {
         {/* Bar Chart */}
         {byMonth.length > 0 && (
           <div className="gradient-card rounded-2xl border border-border/60 shadow-soft p-6">
-            <h2 className="font-display text-lg font-semibold mb-6">Активність по місяцях</h2>
+            <h2 className="font-display text-lg font-semibold mb-6 text-slate-900 dark:text-slate-950">Activity by month</h2>
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={byMonth}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11 }} allowDecimals={false} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.1)" />
+                <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b' }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748b' }} allowDecimals={false} />
                 <Tooltip
-                  cursor={{ fill: 'hsl(var(--muted)/0.4)' }}
+                  cursor={{ fill: 'rgba(0,0,0,0.05)' }}
                   contentStyle={{ background: 'white', border: 'none', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                 />
-                <Bar dataKey="count" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} barSize={30} />
+                <Bar dataKey="count" fill="#475569" radius={[6, 6, 0, 0]} barSize={30} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -137,16 +137,16 @@ export default function StatsPage() {
         {/* Distribution Chart */}
         {totalRated > 0 && (
           <div className="gradient-card rounded-2xl border border-border/60 shadow-soft p-6 lg:col-span-2">
-            <h2 className="font-display text-lg font-semibold mb-6">Аналіз твоїх оцінок</h2>
+            <h2 className="font-display text-lg font-semibold mb-6 text-slate-900 dark:text-slate-950">Analysis of your grades</h2>
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={ratingDist}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                <XAxis dataKey="rating" axisLine={false} tickLine={false} />
-                <YAxis axisLine={false} tickLine={false} allowDecimals={false} />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.1)" />
+                <XAxis dataKey="rating" axisLine={false} tickLine={false} tick={{ fill: '#64748b' }} />
+                <YAxis axisLine={false} tickLine={false} allowDecimals={false} tick={{ fill: '#64748b' }} />
                 <Tooltip
                   cursor={{ fill: 'transparent' }}
                   contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                  formatter={(v) => [`${v} записів`, 'Оцінка']}
+                  formatter={(v) => [`${v} records`, 'Grade']}
                 />
                 <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                   {ratingDist.map((entry, index) => (

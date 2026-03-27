@@ -10,7 +10,7 @@
     --background: 38 33% 97%;
     --foreground: 220 25% 18%;
 
-    --card: 36 40% 96%;
+    --card: 40 15% 90%;
     --card-foreground: 220 25% 18%;
 
     --popover: 36 40% 96%;
@@ -71,7 +71,7 @@
     --popover-foreground: 38 25% 92%;
     --primary: 38 30% 85%;
     --primary-foreground: 220 25% 12%;
-    --secondary: 220 20% 18%;
+    --secondary: 220 20% 25%;
     --secondary-foreground: 38 25% 88%;
     --muted: 220 18% 16%;
     --muted-foreground: 220 12% 58%;
@@ -91,6 +91,15 @@
     --sidebar-border: 220 18% 18%;
     --sidebar-ring: 38 30% 75%;
   }
+}
+
+@keyframes border-glow {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+.animate-glow {
+  animation: border-glow 3s infinite ease-in-out;
 }
 
 @layer base {

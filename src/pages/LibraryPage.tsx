@@ -26,7 +26,18 @@ export default function LibraryPage() {
     )
     .sort((a, b) => {
       if (sort === 'rating') return (b.rating || 0) - (a.rating || 0);
-      if (sort === 'title') return a.title.localeCompare(b.title);
+      
+      if (sort === 'title') {
+        const titleA = a.title.trim();
+        const titleB = b.title.trim();
+        const isEngA = /^[a-zA-Z]/.test(titleA);
+        const isEngB = /^[a-zA-Z]/.test(titleB);
+
+        if (isEngA && !isEngB) return -1;
+        if (!isEngA && isEngB) return 1;
+        return titleA.localeCompare(titleB, 'en', { sensitivity: 'base' });
+      }
+
       if (sort === 'date_consumed') return (b.date_consumed || '').localeCompare(a.date_consumed || '');
       // Сортування за часом (у Firebase це зазвичай ISO рядок)
       return (b.created_at || '').localeCompare(a.created_at || '');

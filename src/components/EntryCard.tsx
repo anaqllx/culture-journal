@@ -1,16 +1,16 @@
 import { useState } from 'react';
 import { CategoryBadge, StarRating, STATUS_CONFIG } from '@/components/CategoryBadge';
-import { useDeleteEntry } from '@/hooks/useEntries'; // Цей хук ми створимо наступним кроком
+import { useDeleteEntry } from '@/hooks/useEntries';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal, Pencil, Trash2, BookOpen } from 'lucide-react';
 import EntryForm from '@/components/EntryForm';
 import { useToast } from '@/hooks/use-toast';
-import { Entry } from '@/types/content'; // Імпортуємо наш новий тип
+import { Entry } from '@/types/content';
 
 interface EntryCardProps {
-  entry: Entry; // Міняємо CulturalEntry на Entry
+  entry: Entry;
 }
 
 export default function EntryCard({ entry }: EntryCardProps) {
@@ -36,7 +36,7 @@ export default function EntryCard({ entry }: EntryCardProps) {
         <div className="flex gap-3 p-4">
           {/* Cover */}
           <div className="flex-shrink-0 w-16 h-22">
-            {entry.image_url ? ( // Lovable міг називати це cover_url, у Firebase ми назвали image_url
+            {entry.image_url ? (
               <img
                 src={entry.image_url}
                 alt={entry.title}
@@ -53,11 +53,15 @@ export default function EntryCard({ entry }: EntryCardProps) {
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
-                <h3 className="font-display font-semibold text-foreground text-sm leading-tight truncate">
+                {/* НАЗВА: Замість text-foreground ставимо жорсткий темний колір */}
+                <h3 className="font-display font-semibold text-slate-900 dark:text-slate-950 text-sm leading-tight truncate">
                   {entry.title}
                 </h3>
                 {entry.author_creator && (
-                  <p className="text-muted-foreground text-xs mt-0.5 truncate">{entry.author_creator}</p>
+                  /* АВТОР: Теж робимо темним, щоб не зникав на світлій картці */
+                  <p className="text-slate-700 dark:text-slate-800 text-xs mt-0.5 truncate font-medium">
+                    {entry.author_creator}
+                  </p>
                 )}
               </div>
               <DropdownMenu>
@@ -90,8 +94,9 @@ export default function EntryCard({ entry }: EntryCardProps) {
               <StarRating rating={entry.rating} size="sm" />
             </div>
 
-            {entry.review && ( // У Lovable могло бути reflections, у нас review
-              <p className="text-xs text-muted-foreground mt-2 line-clamp-2 italic">
+            {entry.review && (
+              /* ВІДГУК: Теж змушуємо бути темним */
+              <p className="text-xs text-slate-800 dark:text-slate-900 mt-2 line-clamp-2 italic">
                 "{entry.review}"
               </p>
             )}
