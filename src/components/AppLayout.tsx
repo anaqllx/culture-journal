@@ -6,13 +6,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import EntryForm from '@/components/EntryForm';
 import { ThemeToggle } from './ThemeToggle';
 import {
-  BookOpen, LayoutDashboard, Library, BarChart3, LogOut, Plus, Menu, X
+  BookOpen, LayoutDashboard, Library, BarChart3, LogOut, Plus, Menu, X, Settings2
 } from 'lucide-react';
 
+// Додаємо новий пункт навігації для кастомних категорій
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/library', label: 'Library', icon: Library },
   { to: '/stats', label: 'Stats', icon: BarChart3 },
+  { to: '/custom-category', label: 'Add Category', icon: Settings2 }, // Пункт для конструктора
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -33,7 +35,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <span className="font-display font-bold text-foreground text-lg whitespace-nowrap">Cultural Journal</span>
         </div>
 
-        {/* Add button */}
+        {/* Add Entry button */}
         <Dialog open={addOpen} onOpenChange={setAddOpen}>
           <DialogTrigger asChild>
             <Button className="w-full gap-2 mb-2 rounded-xl shadow-sm">
@@ -95,7 +97,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center">
             <BookOpen className="w-3.5 h-3.5 text-primary-foreground" />
           </div>
-          <span className="font-display font-bold text-foreground">Culture-Chat</span>
+          <span className="font-display font-bold text-foreground">Cultural Journal</span>
         </div>
         <div className="flex items-center gap-1">
           <ThemeToggle />

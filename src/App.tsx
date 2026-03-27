@@ -10,7 +10,8 @@ import LibraryPage from "@/pages/LibraryPage";
 import StatsPage from "@/pages/StatsPage";
 import AppLayout from "@/components/AppLayout";
 import NotFound from "./pages/NotFound.tsx";
-import { ThemeProvider } from "./context/ThemeContext"; // Наш новий контекст
+import { ThemeProvider } from "./context/ThemeContext";
+import CustomCategoryPage from "./pages/CustomCategoryPage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -44,6 +45,7 @@ function AppRoutes() {
         <Route path="/library" element={<LibraryPage />} />
         <Route path="/stats" element={<StatsPage />} />
         <Route path="*" element={<NotFound />} />
+        <Route path="/custom-category" element={<CustomCategoryPage />} />
       </Routes>
     </AppLayout>
   );

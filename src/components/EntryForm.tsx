@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -10,13 +10,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useAddEntry, useUpdateEntry } from '@/hooks/useEntries';
 import { CATEGORY_CONFIG } from '@/components/CategoryBadge';
 import { useToast } from '@/hooks/use-toast';
-import { Upload, X, ImageIcon, Loader2 } from 'lucide-react';
+import { Upload, X, ImageIcon, Loader2, LayoutGrid } from 'lucide-react';
 import { Category, Status, Entry } from '@/types/content';
 import { uploadToCloudinary } from '@/lib/cloudinary';
+import { db, auth } from '@/lib/firebase'; // Додано для завантаження категорій
+import { collection, query, where, getDocs } from 'firebase/firestore'; // Додано
 
+// Змінено схему: category тепер string, бо це може бути ID з бази
 const schema = z.object({
-  title: z.string().min(1, 'Назва обов’язкова').max(200),
-  category: z.enum(['book', 'movie', 'game', 'music'] as const),
+  title: z.string().min(1, 'Name required').max(200),
+  category: z.string().min(1, 'Category required'), 
   status: z.enum(['currently', 'completed', 'want'] as const),
   date_consumed: z.string().optional().nullable(),
   rating: z.number().min(1).max(10).nullable().optional(),
@@ -41,12 +44,15 @@ export default function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps
   
   const [coverPreview, setCoverPreview] = useState(entry?.image_url || '');
   const [isUploading, setIsUploading] = useState(false);
+  
+  // Стейт для списку всіх доступних категорій
+  const [availableCategories, setAvailableCategories] = useState<{id: string, label: string, isCustom?: boolean}[]>([]);
 
   const { register, handleSubmit, setValue, watch, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
       title: entry?.title || '',
-      category: (entry?.category as Category) || 'book',
+      category: entry?.category || 'book',
       status: (entry?.status as Status) || 'completed',
       date_consumed: entry?.date_consumed || '',
       rating: entry?.rating || null,
@@ -57,61 +63,67 @@ export default function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps
     },
   });
 
-  const category = watch('category');
+  // Завантажуємо кастомні категорії з Firestore
+  useEffect(() => {
+    const fetchCategories = async () => {
+      const user = auth.currentUser;
+      if (!user) return;
+
+      try {
+        const q = query(collection(db, "categories"), where("user_id", "==", user.uid));
+        const snap = await getDocs(q);
+        
+        const custom = snap.docs.map(doc => ({
+          id: doc.id,
+          label: doc.data().name,
+          isCustom: true
+        }));
+
+        // Стандартні категорії
+        const defaults = (Object.entries(CATEGORY_CONFIG) as [Category, any][]).map(([key, cfg]) => ({
+          id: key,
+          label: cfg.label
+        }));
+
+        setAvailableCategories([...defaults, ...custom]);
+      } catch (e) {
+        console.error("Error fetching categories:", e);
+      }
+    };
+
+    fetchCategories();
+  }, []);
+
+  const currentCategory = watch('category');
   const ratingValue = watch('rating');
 
-  // Функція завантаження файлу на Cloudinary
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     try {
       setIsUploading(true);
       const imageUrl = await uploadToCloudinary(file);
-      
-      setValue('image_url', imageUrl); // Оновлюємо значення в формі
-      setCoverPreview(imageUrl);       // Оновлюємо прев'ю
-      
-      toast({ title: 'Фото завантажено!', description: 'Обкладинка успішно збережена в хмарі' });
+      setValue('image_url', imageUrl);
+      setCoverPreview(imageUrl);
+      toast({ title: 'Photo uploaded!', description: 'Cover saved successfully' });
     } catch (error) {
-      toast({ 
-        title: 'Помилка завантаження', 
-        description: 'Не вдалося зберегти фото. Перевір налаштування пресета.',
-        variant: 'destructive' 
-      });
-    } finally {
-      setIsUploading(false);
-    }
+      toast({ title: 'Upload error', variant: 'destructive' });
+    } finally { setIsUploading(false); }
   };
 
   const onSubmit = async (data: FormData) => {
     try {
-      const payload = {
-        title: data.title,
-        category: data.category,
-        status: data.status,
-        date_consumed: data.date_consumed || null,
-        rating: data.rating ?? null,
-        review: data.review || null,
-        author_creator: data.author_creator || null,
-        year: data.year ?? null,
-        image_url: data.image_url || null,
-      };
-
+      const payload = { ...data, date_consumed: data.date_consumed || null };
       if (entry?.id) {
-        await updateEntry.mutateAsync({ id: entry.id, ...payload });
-        toast({ title: 'Оновлено!', description: 'Запис успішно змінено' });
+        await updateEntry.mutateAsync({ id: entry.id, ...payload } as any );
+        toast({ title: 'Updated!', description: 'Entry changed successfully' });
       } else {
-        await addEntry.mutateAsync(payload);
-        toast({ title: 'Додано!', description: 'Новий запис з’явився у щоденнику' });
+        await addEntry.mutateAsync(payload as any);
+        toast({ title: 'Added!', description: 'New entry added to your journal' });
       }
       onSuccess?.();
     } catch (err: any) {
-      toast({ 
-        title: 'Помилка', 
-        description: err.message || 'Щось пішло не так', 
-        variant: 'destructive' 
-      });
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
     }
   };
 
@@ -119,141 +131,97 @@ export default function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 text-left">
+      {/* Photo & Title block */}
       <div className="flex gap-4">
-        {/* Блок завантаження та прев'ю */}
         <div className="flex-shrink-0 flex flex-col gap-2">
           <div className="w-24 h-32 rounded-xl border-2 border-dashed border-border bg-muted flex items-center justify-center overflow-hidden relative group shadow-sm">
             {isUploading ? (
-              <div className="flex flex-col items-center gap-2">
-                <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                <span className="text-[10px] text-muted-foreground">Завантаження...</span>
-              </div>
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
             ) : coverPreview ? (
               <>
                 <img src={coverPreview} alt="cover" className="w-full h-full object-cover" />
-                <button
-                  type="button"
-                  onClick={() => { setCoverPreview(''); setValue('image_url', ''); }}
-                  className="absolute top-1 right-1 bg-background/90 rounded-full p-1 shadow-md opacity-0 group-hover:opacity-100 transition-opacity"
-                >
+                <button type="button" onClick={() => { setCoverPreview(''); setValue('image_url', ''); }} className="absolute top-1 right-1 bg-background/90 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <X className="w-3 h-3 text-destructive" />
                 </button>
               </>
             ) : (
-              <div className="flex flex-col items-center gap-1 p-2 text-muted-foreground opacity-40">
-                <ImageIcon className="w-6 h-6" />
-                <span className="text-[10px] text-center font-medium">Немає фото</span>
-              </div>
+              <ImageIcon className="w-6 h-6 text-muted-foreground opacity-40" />
             )}
           </div>
-          
-          <Label 
-            htmlFor="file-upload" 
-            className="cursor-pointer text-[11px] font-semibold text-center bg-secondary py-1.5 px-2 rounded-lg hover:bg-secondary/80 transition-colors border border-border/50"
-          >
-            {isUploading ? "Обробка..." : "Обрати файл"}
+          <Label htmlFor="file-upload" className="cursor-pointer text-[11px] font-semibold text-center bg-secondary py-1.5 px-2 rounded-lg hover:bg-secondary/80 border border-border/50">
+            {isUploading ? "Processing..." : "Choose File"}
           </Label>
-          <input 
-            id="file-upload" 
-            type="file" 
-            className="hidden" 
-            accept="image/*" 
-            onChange={handleFileChange}
-            disabled={isUploading}
-          />
+          <input id="file-upload" type="file" className="hidden" accept="image/*" onChange={handleFileChange} disabled={isUploading} />
         </div>
 
         <div className="flex-1 space-y-4">
           <div>
-            <Label htmlFor="title" className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Назва *</Label>
-            <Input id="title" {...register('title')} placeholder="Назва книги, фільму..." className="mt-1 bg-background" />
+            <Label htmlFor="title" className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Title *</Label>
+            <Input id="title" {...register('title')} placeholder="Book, movie title..." className="mt-1 bg-background" />
             {errors.title && <p className="text-destructive text-[10px] mt-1">{errors.title.message}</p>}
           </div>
           <div>
-            <Label htmlFor="author_creator" className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Автор / Творець</Label>
-            <Input id="author_creator" {...register('author_creator')} placeholder="Хто автор?" className="mt-1 bg-background" />
+            <Label htmlFor="author_creator" className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Author / Creator</Label>
+            <Input id="author_creator" {...register('author_creator')} placeholder="Who created this?" className="mt-1 bg-background" />
           </div>
         </div>
       </div>
 
-      <div>
-        <Label htmlFor="image_url" className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">URL картинки (або завантаж файл)</Label>
-        <Input
-          id="image_url"
-          {...register('image_url')}
-          placeholder="https://images..."
-          className="mt-1 bg-background"
-          onChange={e => { setValue('image_url', e.target.value); setCoverPreview(e.target.value); }}
-        />
-      </div>
-
+      {/* Category & Status Selection */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Категорія *</Label>
-          <Select defaultValue={category} onValueChange={v => setValue('category', v as Category)}>
+          <Label className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Category *</Label>
+          <Select value={currentCategory} onValueChange={v => setValue('category', v)}>
             <SelectTrigger className="mt-1 bg-background">
-              <SelectValue />
+              <SelectValue placeholder="Select category" />
             </SelectTrigger>
             <SelectContent>
-              {(Object.entries(CATEGORY_CONFIG) as [Category, any][]).map(([key, cfg]) => {
-                const Icon = cfg.icon;
-                return (
-                  <SelectItem key={key} value={key}>
-                    <span className="flex items-center gap-2">
-                      <Icon className="w-4 h-4" /> {cfg.label}
-                    </span>
-                  </SelectItem>
-                );
-              })}
+              {availableCategories.map(cat => (
+                <SelectItem key={cat.id} value={cat.id}>
+                  <span className="flex items-center gap-2">
+                    {cat.isCustom ? <LayoutGrid className="w-4 h-4 text-primary/60" /> : null}
+                    {cat.label}
+                  </span>
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
+          {errors.category && <p className="text-destructive text-[10px] mt-1">{errors.category.message}</p>}
         </div>
 
         <div>
-          <Label className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Статус *</Label>
+          <Label className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Status *</Label>
           <Select defaultValue={watch('status')} onValueChange={v => setValue('status', v as Status)}>
             <SelectTrigger className="mt-1 bg-background">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="currently">📖 В процесі</SelectItem>
-              <SelectItem value="completed">✅ Завершено</SelectItem>
-              <SelectItem value="want">⭐ В планах</SelectItem>
+              <SelectItem value="currently">📖 In Progress</SelectItem>
+              <SelectItem value="completed">✅ Completed</SelectItem>
+              <SelectItem value="want">⭐ Want to</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
 
+      {/* Rest of the form (Year, Date, Rating, Review) */}
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <Label htmlFor="year" className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Рік виходу</Label>
-          <Input
-            id="year"
-            type="number"
-            className="mt-1 bg-background"
-            {...register('year', { valueAsNumber: true })}
-          />
+          <Label htmlFor="year" className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Release Year</Label>
+          <Input id="year" type="number" className="mt-1 bg-background" {...register('year', { valueAsNumber: true })} />
         </div>
         <div>
-          <Label htmlFor="date_consumed" className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Дата ознайомлення</Label>
+          <Label htmlFor="date_consumed" className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Date Consumed</Label>
           <Input id="date_consumed" type="date" {...register('date_consumed')} className="mt-1 bg-background" />
         </div>
       </div>
 
       <div>
-        <Label className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Твоя оцінка: {ratingValue ? `${ratingValue}/10` : 'Без оцінки'}</Label>
+        <Label className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Rating: {ratingValue ? `${ratingValue}/10` : 'No rating'}</Label>
         <div className="flex gap-1.5 mt-2 flex-wrap">
           {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
-            <button
-              key={num}
-              type="button"
-              onClick={() => setValue('rating', ratingValue === num ? null : num)}
-              className={`w-8 h-8 rounded-lg text-xs font-bold transition-all border shadow-sm ${
-                ratingValue && ratingValue >= num
-                  ? 'bg-primary text-primary-foreground border-primary scale-105'
-                  : 'bg-background text-muted-foreground border-border hover:border-primary/50'
-              }`}
-            >
+            <button key={num} type="button" onClick={() => setValue('rating', ratingValue === num ? null : num)}
+              className={`w-8 h-8 rounded-lg text-xs font-bold transition-all border shadow-sm ${ratingValue && ratingValue >= num ? 'bg-primary text-primary-foreground border-primary scale-105' : 'bg-background text-muted-foreground border-border hover:border-primary/50'}`}>
               {num}
             </button>
           ))}
@@ -261,21 +229,14 @@ export default function EntryForm({ entry, onSuccess, onCancel }: EntryFormProps
       </div>
 
       <div>
-        <Label htmlFor="review" className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Враження (Reflections)</Label>
-        <Textarea
-          id="review"
-          {...register('review')}
-          placeholder="Що тобі запам'яталося?"
-          className="mt-1 bg-background min-h-[100px] resize-none"
-        />
+        <Label htmlFor="review" className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Reflections</Label>
+        <Textarea id="review" {...register('review')} placeholder="What do you remember?" className="mt-1 bg-background min-h-[100px] resize-none" />
       </div>
 
       <div className="flex gap-3 pt-2">
-        {onCancel && (
-          <Button type="button" variant="outline" onClick={onCancel} className="flex-1 rounded-xl">Скасувати</Button>
-        )}
+        {onCancel && <Button type="button" variant="outline" onClick={onCancel} className="flex-1 rounded-xl">Cancel</Button>}
         <Button type="submit" className="flex-1 rounded-xl shadow-md" disabled={isLoading || isUploading}>
-          {isUploading ? 'Завантаження фото...' : isLoading ? 'Збереження...' : entry ? 'Оновити' : 'Додати в щоденник'}
+          {isUploading ? 'Uploading...' : isLoading ? 'Saving...' : entry ? 'Update' : 'Add to Journal'}
         </Button>
       </div>
     </form>

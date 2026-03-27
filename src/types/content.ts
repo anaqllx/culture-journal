@@ -1,4 +1,4 @@
-export type Category = 'book' | 'movie' | 'game' | 'music';
+export type Category = 'book' | 'movie' | 'game' | 'music' | string;
 export type Status = 'currently' | 'completed' | 'want';
 
 export interface Entry {
