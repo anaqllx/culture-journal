@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 
 // ТУТ ВПИШИ СВОЄ ПОСИЛАННЯ, КОЛИ ЗАПУСТИШ ПРОЄКТ
-const PROJECT_URL = "your-cultural-diary.vercel.app";
+const PROJECT_URL = "culture-journal.vercel.app";
 
 const STATIC_COLORS: Record<string, string> = {
   book: '#B45309',

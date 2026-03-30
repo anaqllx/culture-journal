@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -41,6 +41,9 @@ function AppRoutes() {
   return (
     <AppLayout>
       <Routes>
+        {/* Редирект з головної на дашборд */}
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/library" element={<LibraryPage />} />
         <Route path="/stats" element={<StatsPage />} />
@@ -53,7 +56,6 @@ function AppRoutes() {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    {/* ThemeProvider має бути всередині QueryClientProvider, але зовні всього іншого */}
     <ThemeProvider>
       <TooltipProvider>
         <Toaster />
