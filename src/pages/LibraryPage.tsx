@@ -9,6 +9,8 @@ import { Category, Status } from '@/types/content';
 import { auth, db } from '@/lib/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { Link, useNavigate } from 'react-router-dom';
+// Імпортуємо палітру для кольорових кнопок
+import { CATEGORY_PALETTE } from "@/pages/CustomCategoryPage";
 
 type SortKey = 'created_at' | 'rating' | 'date_consumed' | 'title';
 
@@ -16,6 +18,7 @@ interface CustomCategory {
   id: string;
   name: string;
   user_id: string;
+  colorIndex?: number; // Додаємо colorIndex в інтерфейс
 }
 
 export default function LibraryPage() {
@@ -62,11 +65,11 @@ export default function LibraryPage() {
     });
 
   const staticCats = [
-    { key: 'all', label: 'All', icon: LayoutGrid },
-    { key: 'book', label: 'Books', icon: BookOpen },
-    { key: 'movie', label: 'Movies', icon: Film },
-    { key: 'game', label: 'Games', icon: Gamepad2 },
-    { key: 'music', label: 'Music', icon: Music },
+    { key: 'all', label: 'All', icon: LayoutGrid, activeClass: 'bg-primary text-primary-foreground' },
+    { key: 'book', label: 'Books', icon: BookOpen, activeClass: 'bg-amber-100 text-amber-900 border-amber-200' },
+    { key: 'movie', label: 'Movies', icon: Film, activeClass: 'bg-blue-100 text-blue-900 border-blue-200' },
+    { key: 'game', label: 'Games', icon: Gamepad2, activeClass: 'bg-emerald-100 text-emerald-900 border-emerald-200' },
+    { key: 'music', label: 'Music', icon: Music, activeClass: 'bg-rose-100 text-rose-900 border-rose-200' },
   ];
 
   if (entriesLoading || categoriesLoading) {
@@ -103,6 +106,7 @@ export default function LibraryPage() {
             <SelectItem value="all">All statuses</SelectItem>
             <SelectItem value="currently">Currently</SelectItem>
             <SelectItem value="completed">Completed</SelectItem>
+            <SelectItem value="want">Want to</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -110,45 +114,57 @@ export default function LibraryPage() {
       <div className="space-y-4">
         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">Collections</p>
         <div className="flex gap-2 flex-wrap">
-          {staticCats.map(({ key, label, icon: Icon }) => (
+          {/* Статичні категорії */}
+          {staticCats.map(({ key, label, icon: Icon, activeClass }) => (
             <Button
               key={key}
-              variant={category === key ? 'default' : 'outline'}
+              variant="outline"
               onClick={() => setCategory(key)}
-              className="rounded-full gap-2 px-5 transition-all"
+              className={`rounded-full gap-2 px-5 transition-all ${
+                category === key ? activeClass : 'hover:bg-muted/50'
+              }`}
             >
               <Icon size={16} /> {label}
             </Button>
           ))}
           
-          {customCategories.map((cat) => (
-            <div key={cat.id} className="relative group">
-              <Button
-                variant={category === cat.id ? 'default' : 'outline'}
-                onClick={() => setCategory(cat.id)}
-                className={`rounded-full gap-2 pl-5 pr-10 border-primary/20 transition-all ${
-                  category === cat.id ? 'shadow-md' : ''
-                }`}
-              >
-                <LayoutGrid size={16} className={category === cat.id ? 'text-white' : 'text-primary/50'} />
-                {cat.name}
-              </Button>
-              
-              {/* Кнопка редагування кастомної категорії */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigate(`/custom-category/${cat.id}`);
-                }}
-                className={`absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full transition-all hover:bg-black/10 ${
-                  category === cat.id ? 'text-white/80 hover:text-white' : 'text-muted-foreground hover:text-primary'
-                }`}
-                title="Edit Category"
-              >
-                <Edit2 size={12} />
-              </button>
-            </div>
-          ))}
+          {/* Кастомні категорії з палітрою */}
+          {customCategories.map((cat) => {
+            const isSelected = category === cat.id;
+            const style = CATEGORY_PALETTE[cat.colorIndex ?? 0] || CATEGORY_PALETTE[0];
+            
+            return (
+              <div key={cat.id} className="relative group">
+                <Button
+                  variant="outline"
+                  onClick={() => setCategory(cat.id)}
+                  className={`rounded-full gap-2 pl-5 pr-10 transition-all border-primary/10 ${
+                    isSelected 
+                      ? `${style.bg} ${style.textColor} border-transparent shadow-sm` 
+                      : 'hover:bg-muted/50'
+                  }`}
+                >
+                  <LayoutGrid size={16} className={isSelected ? style.color : 'text-primary/40'} />
+                  {cat.name}
+                </Button>
+                
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate(`/custom-category/${cat.id}`);
+                  }}
+                  className={`absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full transition-all ${
+                    isSelected 
+                      ? 'text-current/60 hover:text-current hover:bg-black/5' 
+                      : 'text-muted-foreground hover:text-primary hover:bg-primary/10'
+                  }`}
+                  title="Edit Category"
+                >
+                  <Edit2 size={12} />
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
 

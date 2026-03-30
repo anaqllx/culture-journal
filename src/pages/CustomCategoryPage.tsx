@@ -7,7 +7,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Save, Sparkles, Star, MessageSquare, CheckCircle2, Loader2, ArrowLeft } from "lucide-react";
+import { Save, Sparkles, Star, MessageSquare, CheckCircle2, Loader2, ArrowLeft, Trash2 } from "lucide-react";
+import { collection, query, where, getDocs, doc, deleteDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+
+export const CATEGORY_PALETTE = [
+  { name: 'purple', color: 'text-purple-700', bg: 'bg-purple-100/90', textColor: 'text-purple-950' },
+  { name: 'orange', color: 'text-orange-700', bg: 'bg-orange-100/90', textColor: 'text-orange-950' },
+  { name: 'cyan', color: 'text-cyan-700', bg: 'bg-cyan-100/90', textColor: 'text-cyan-950' },
+  { name: 'pink', color: 'text-pink-700', bg: 'bg-pink-100/90', textColor: 'text-pink-950' },
+  { name: 'indigo', color: 'text-indigo-700', bg: 'bg-indigo-100/90', textColor: 'text-indigo-950' },
+  { name: 'teal', color: 'text-teal-700', bg: 'bg-teal-100/90', textColor: 'text-teal-950' },
+  { name: 'lime', color: 'text-lime-700', bg: 'bg-lime-100/90', textColor: 'text-lime-950' },
+];
 
 interface FeatureItemProps {
   icon: React.ReactNode;
@@ -18,13 +30,14 @@ interface FeatureItemProps {
 }
 
 export default function CustomCategoryPage() {
-  const { id } = useParams(); // Отримуємо ID для редагування
+  const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
   
   const [categoryName, setCategoryName] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(false);
+  const [colorIndex, setColorIndex] = useState<number | null>(null);
   
   const [settings, setSettings] = useState({
     rating: true,
@@ -32,7 +45,6 @@ export default function CustomCategoryPage() {
     status: true,
   });
 
-  // Завантаження даних існуючої категорії
   useEffect(() => {
     const loadCategoryData = async () => {
       if (!id) return;
@@ -43,6 +55,9 @@ export default function CustomCategoryPage() {
         if (categoryData) {
           setCategoryName(categoryData.name);
           setSettings(categoryData.settings);
+          if (categoryData.colorIndex !== undefined) {
+            setColorIndex(categoryData.colorIndex);
+          }
         } else {
           toast({ title: "Not found", description: "Category not found", variant: "destructive" });
           navigate("/library");
@@ -57,56 +72,83 @@ export default function CustomCategoryPage() {
     loadCategoryData();
   }, [id, navigate, toast]);
 
+  const handleDelete = async () => {
+    if (!id) return;
+    
+    if (!window.confirm("Are you sure you want to delete this category? All entries in this category will lose their connection to it.")) {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await deleteDoc(doc(db, "categories", id));
+      toast({ title: "Deleted", description: "Category has been removed." });
+      navigate("/library");
+    } catch (err) {
+      console.error("Delete error:", err);
+      toast({ title: "Error", description: "Could not delete category.", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleSave = async () => {
-    if (!categoryName.trim()) {
-      toast({ 
-        title: "Name required", 
-        description: "Please enter a name for your custom category.", 
-        variant: "destructive" 
-      });
+    const trimmedName = categoryName.trim();
+    
+    if (!trimmedName) {
+      toast({ title: "Name required", variant: "destructive" });
       return;
     }
 
     const user = auth.currentUser;
     if (!user) {
-      toast({ 
-        title: "Authentication error", 
-        description: "You must be logged in to manage categories.", 
-        variant: "destructive" 
-      });
+      toast({ title: "Authentication error", variant: "destructive" });
       return;
     }
 
     setIsSaving(true);
 
     try {
+      const q = query(
+        collection(db, "categories"), 
+        where("user_id", "==", user.uid),
+        where("name", "==", trimmedName)
+      );
+      const querySnapshot = await getDocs(q);
+      const isDuplicate = querySnapshot.docs.some(doc => doc.id !== id);
+
+      if (isDuplicate) {
+        toast({ 
+          title: "Category exists", 
+          description: `You already have a category named "${trimmedName}".`, 
+          variant: "destructive" 
+        });
+        setIsSaving(false);
+        return;
+      }
+
       const payload = {
         user_id: user.uid,
-        name: categoryName,
+        name: trimmedName,
         settings: settings,
+        colorIndex: colorIndex ?? Math.floor(Math.random() * CATEGORY_PALETTE.length),
       };
 
       if (id) {
-        // ОНОВЛЕННЯ
         await updateCategory(id, payload);
-        toast({ title: "Updated!", description: `Category "${categoryName}" updated.` });
+        toast({ title: "Updated!", description: `Category "${trimmedName}" updated.` });
       } else {
-        // СТВОРЕННЯ
         await createCategory({
           ...payload,
           createdAt: new Date().toISOString(),
         });
-        toast({ title: "Success!", description: `Category "${categoryName}" created.` });
+        toast({ title: "Success!", description: `Category "${trimmedName}" created.` });
       }
 
       navigate("/library");
     } catch (err: any) {
       console.error(err);
-      toast({ 
-        title: "Error", 
-        description: "Failed to save category. Please try again.", 
-        variant: "destructive" 
-      });
+      toast({ title: "Error", description: "Failed to save category.", variant: "destructive" });
     } finally {
       setIsSaving(false);
     }
@@ -116,7 +158,7 @@ export default function CustomCategoryPage() {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-4">
         <Loader2 className="w-10 h-10 animate-spin text-primary opacity-20" />
-        <p className="text-muted-foreground animate-pulse">Loading settings...</p>
+        <p className="text-muted-foreground animate-pulse font-medium">Syncing with database...</p>
       </div>
     );
   }
@@ -134,9 +176,21 @@ export default function CustomCategoryPage() {
           </p>
         </div>
         
-        <Button variant="ghost" onClick={() => navigate("/library")} className="rounded-xl">
-          <ArrowLeft className="w-4 h-4 mr-2" /> Back
-        </Button>
+        <div className="flex items-center gap-2">
+          {id && (
+            <Button 
+              variant="ghost" 
+              onClick={handleDelete} 
+              className="rounded-xl text-destructive hover:bg-destructive/10"
+              disabled={isSaving}
+            >
+              <Trash2 className="w-4 h-4 mr-2" /> Delete Category
+            </Button>
+          )}
+          <Button variant="ghost" onClick={() => navigate("/library")} className="rounded-xl">
+            <ArrowLeft className="w-4 h-4 mr-2" /> Back
+          </Button>
+        </div>
       </div>
 
       <div className="bg-card p-10 rounded-[2.5rem] border border-border/40 shadow-sm space-y-8 relative overflow-hidden">
@@ -161,8 +215,8 @@ export default function CustomCategoryPage() {
           <div className="grid gap-4">
             <FeatureItem 
               icon={<Star className="w-5 h-5 text-chart-1" />}
-              label="5-Star Rating" 
-              description="Enable a rating system for each entry."
+              label="10-Point Rating" 
+              description="Enable a 1-10 rating system for each entry."
               checked={settings.rating}
               onCheckedChange={(val) => setSettings({ ...settings, rating: val })}
             />

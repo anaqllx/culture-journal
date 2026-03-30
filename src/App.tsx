@@ -44,8 +44,8 @@ function AppRoutes() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/library" element={<LibraryPage />} />
         <Route path="/stats" element={<StatsPage />} />
+        <Route path="/custom-category/:id?" element={<CustomCategoryPage />} />
         <Route path="*" element={<NotFound />} />
-        <Route path="/custom-category" element={<CustomCategoryPage />} />
       </Routes>
     </AppLayout>
   );

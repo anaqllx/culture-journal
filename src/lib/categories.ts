@@ -20,6 +20,7 @@ export interface CategorySchema {
     comments: boolean;
     status: boolean;
   };
+  colorIndex?: number;
   createdAt: any;
 }
 
