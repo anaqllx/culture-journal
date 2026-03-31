@@ -43,12 +43,15 @@ export function useAddEntry() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (newEntry: Omit<Entry, 'id' | 'user_id' | 'created_at'>) => {
+    mutationFn: async (newEntry: any) => { // ставимо any для тесту
       const user = auth.currentUser;
-      if (!user) throw new Error('Користувач не авторизований');
+      if (!user) throw new Error('User not authorized');
+
+      // ЦЕЙ ЛОГ ПОКАЖЕ, ЧИ ДОХОДЯТЬ ДАНІ ДО ХУКА
+      console.log("ДАНІ ВНУТРІ МУТАЦІЇ:", newEntry);
 
       const docRef = await addDoc(collection(db, 'entries'), {
-        ...newEntry,
+        ...newEntry, // Переконайся, що тут є три крапки
         user_id: user.uid,
         created_at: new Date().toISOString(),
       });
@@ -56,7 +59,6 @@ export function useAddEntry() {
       return { id: docRef.id, ...newEntry };
     },
     onSuccess: () => {
-      // Оновлюємо кеш, щоб нова картка з'явилася миттєво
       queryClient.invalidateQueries({ queryKey: ['entries'] });
     },
   });
